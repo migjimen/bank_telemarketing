@@ -1,0 +1,289 @@
+---
+title: "Bank Marketing Campaign"
+author: "Miguel Ángel Jiménez Sánchez"
+date: "May the 10th, 2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+
+#dl <- tempfile()
+#download.file("http://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank-additional.zip", dl)
+#unzip(dl, "bank-additional/bank-additional-full.csv")
+#rm(dl)
+calls <- read.csv("./bank-additional/bank-additional-full.csv",sep=";")
+
+calls <- subset(calls, select=-c(duration))
+
+```
+
+# Overview
+
+## Objective
+
+The goal of the system described on this document is to predict if a client will subscribe a bank term deposit on a telephonic marketic campaign.
+
+## The dataset
+
+The dataset used on this project is based on "Bank Marketing" UCI dataset and is publicly available for research. It can be downloaded from <http://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank-additional.zip>.
+
+The zip file contains two csv files. The first (bank-additional-full.csv) contains the full data set. The second file (bank-additional.csv) contains a sample of 10% of the former. The zip file contains as well a txt file with information about the dataset and a description of the fields. 
+
+We will use chiefly the file "bank-additional-full.csv". Each row represents a contact with a customer. The dataset contains 41188 observations and 21 variables, including our target variable 'y'. This variable is categorical with two posible values "yes" or "not", depending on whether the customer subscribes the term deposit or not.
+
+The rest of the variables are described on the txt file. These variables can be divided in four groups:
+
+1. Bank client data
+2. Last contact of the current campaign
+3. Social and economic context attributes
+4. Other attributes regarding previous contacts with the client
+
+For reference, I'll copy here the description of the fields:
+
+
+* bank client data:
+ 1 - age (numeric)
+ 2 - job : type of job (categorical: "admin.","blue-collar","entrepreneur","housemaid","management","retired","self-employed","services","student","technician","unemployed","unknown")
+ 3 - marital : marital status (categorical: "divorced","married","single","unknown"; note: "divorced" means divorced or widowed)
+ 4 - education (categorical: "basic.4y","basic.6y","basic.9y","high.school","illiterate","professional.course","university.degree","unknown")
+ 5 - default: has credit in default? (categorical: "no","yes","unknown")
+ 6 - housing: has housing loan? (categorical: "no","yes","unknown")
+ 7 - loan: has personal loan? (categorical: "no","yes","unknown")
+* related with the last contact of the current campaign:
+ 8 - contact: contact communication type (categorical: "cellular","telephone") 
+ 9 - month: last contact month of year (categorical: "jan", "feb", "mar", ..., "nov", "dec")
+ 10 - day_of_week: last contact day of the week (categorical: "mon","tue","wed","thu","fri")
+ 11 - duration: last contact duration, in seconds (numeric). Important note:  this attribute highly affects the output target (e.g., if duration=0 then y="no"). Yet, the duration is not known before a call is performed. Also, after the end of the call y is obviously known. Thus, this input should only be included for benchmark purposes and should be discarded if the intention is to have a realistic predictive model.
+* Other attributes:
+ 12 - campaign: number of contacts performed during this campaign and for this client (numeric, includes last contact)
+ 13 - pdays: number of days that passed by after the client was last contacted from a previous campaign (numeric; 999 means client was not previously contacted)
+ 14 - previous: number of contacts performed before this campaign and for this client (numeric)
+ 15 - poutcome: outcome of the previous marketing campaign (categorical: "failure","nonexistent","success")
+* social and economic context attributes
+ 16 - emp.var.rate: employment variation rate - quarterly indicator (numeric)
+ 17 - cons.price.idx: consumer price index - monthly indicator (numeric)     
+ 18 - cons.conf.idx: consumer confidence index - monthly indicator (numeric)     
+ 19 - euribor3m: euribor 3 month rate - daily indicator (numeric)
+ 20 - nr.employed: number of employees - quarterly indicator (numeric)
+* Output variable (desired target):
+ 21 - y - has the client subscribed a term deposit? (binary: "yes","no")
+
+## Main steps
+
+The first step will be an exploratory data analysis.
+
+
+# Exploratory Data Analysis (EDA)
+
+## Duration variable
+
+One of the first decisions on this dataset is removing the column 'Duration', which describes the duration of the call. Actually some tests that I've done result that this is a variable that helps greatly in predicting our target variable y. 
+
+But it has a big inconvenient: we know the duration of the call at the same time than whether the customer subscribes or not (indeed, if our call operators are polite enough to say "thanks" and "goodbye", the duration is known later than y). So this is not a variable that we can use for our objetive to predict the subscriptions, as it is warned on the txt file included beside the csv file. 
+
+## Summary of the data
+
+With the next command we'll see a summary of our data:
+
+```{r}
+summary(calls)
+```
+
+From here we can see several things:
+
+* We have no NA values in our data. But some categorical variables have values as 'unknown' or 'nonexistent'. We'll analyse these variables later.
+* The results of our target variable y aren't balanced. We only have roughly a 10% of 'yes'.
+* Variables "campaign" and "previous" aren't as similar as their descriptions suggest.
+* Variable "default": in our data set of more than 40.000 calls we have only three calls to people with a previous default. The rest are unknown or have no previous default. It seems that this variable won't have a high predictive power.
+
+## Correlation on numeric columns
+
+Now let's focus on the correlation of the numeric columns:
+
+```{r}
+# Get correlation matrix
+(cormat <- Filter(is.numeric,calls) %>%
+    cor(method="pearson"))
+
+library(reshape2)
+melted_cormat <- melt(cormat)
+
+melted_cormat %>%
+  ggplot(aes(x=Var1, y=Var2, fill=value)) +
+  geom_tile(color="white") +
+  scale_fill_gradient2(low="blue", high = "red", mid="white",
+                       midpoint=0, limit= c(-1,1), space="Lab",
+                       name="Pearson\nCorrelation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle=45, vjust = 1, hjust=1)) +
+  coord_fixed()
+
+```
+
+On this figure we can see strong correlations on several economic variables. Namely we have three variables strongly correlated: The euribor3m, which is an interest rate, and the two variables regarding employment (nr.employed and emp.var.rate).
+
+## Variable importance
+
+Now we will study the variable importance on predicting our target value. To do this we'll use the availability of this functionality on the randomforest package. Let's generate 100 trees and see which are the most important variables:
+
+```{r}
+library(randomForest)
+calls_y = calls$y
+calls_x <- subset(calls, select=-y)
+
+rf <- randomForest(calls_x, calls_y, ntree = 100)
+imp <- as.data.frame(importance(rf))
+variables <- names(calls_x)
+imp <- cbind(imp,variables) %>%
+  arrange(desc(MeanDecreaseGini))
+# set variables as factor to maintain orden in the plot
+imp$variables <- factor(imp$variables, levels=imp$variables)
+ggplot(imp, aes(x=variables,y=MeanDecreaseGini)) +
+  geom_bar(stat="identity") +
+  theme(axis.text.x = element_text(angle=45, vjust = 1, hjust=1))
+
+```
+
+### euribor 3m variable
+
+One of the most important variables is an interest rate indicator as the 3 month euribor. It seems logic, as the product we are offereing is a term diposit. Let's see the distribution of results regarding this indicator:
+
+```{r}
+calls %>%
+  ggplot(aes(x=euribor3m, fill=y)) +
+    geom_histogram(bins=6)
+```
+
+Seems that our campaing was more successful with a low interest rate. And we seldom have results with euribor around 3%. Why? Our data set register calls from may 2008 to november 2010. If we look at historical data for years [2008](https://www.euribor-rates.eu/euribor-2008.asp?i1=6&i2=6), [2009](https://www.euribor-rates.eu/euribor-2009.asp?i1=6&i2=6) and [2010](https://www.euribor-rates.eu/euribor-2010.asp?i1=6&i2=6) at <https://www.euribor-rates.eu>, we can see that interest rates sunked quite abruply at the end of 2008. Maybe a relatively safe investment as a term diposit is more attractive in times of crisis.
+
+### age variable
+
+The next figure shows the distribution of the calls by age, in bins of five years.
+
+```{r}
+calls %>%
+  ggplot(aes(x=age, fill=y)) +
+  geom_histogram(binwidth=5)
+```
+
+We can see that the age ranges have different success rates. Seems that our campaign was less successful with people between 35 and 45 years.
+
+### job variable
+
+Now we'll analyse the job variable. In the next figure we classify the calls by jobs, and show the successes and failures by color.
+
+```{r}
+calls %>%
+  ggplot(aes(x=job, fill=y)) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle=45, vjust = 1, hjust=1))
+```
+
+Now the success rates by job are calculated. We'll show the best and the worse rates.
+
+```{r}
+job_success <- calls %>%
+  group_by(job,y) %>%
+  summarize(n=n()) %>%
+  ungroup() %>%
+  group_by(job) %>%
+  spread(y,n) %>%
+  mutate(success_percent = (yes /(no+yes))*100) %>%
+  arrange(desc(success_percent))
+```
+
+The best rates:
+
+```{r}
+head(job_success,5)
+```
+
+Seems that the campaing was quite successful on students and retired people. Let's see the worse rates:
+
+```{r}
+tail(job_success,5)
+```
+
+The worse results were with blue-collar employees.
+
+## Variables with near Zero variance or near Zero entropy 
+
+The caret package has a function that detects features with near zero variance, and hence canditates to be removed. Let's see its recommendation.
+
+```{r}
+nzv <- nearZeroVar(calls)
+names(calls)[nzv]
+```
+
+The recommendation is to remove the 'pdays' variable which is the number of days passed since the last contact with the same client. But If we we look at the bar plot on the previuos point, this variable has a worthy ninth place of nineteen. Let's have a closer look to this variable.
+
+### variable 'pdays'
+
+The next table shows how manys rows we have for each value in pdays:
+
+```{r}
+table(calls$pdays)
+```
+
+If we calculate the frequency of the value '999' (no previous contact):
+
+```{r}
+calls %>%
+  group_by(pdays) %>%
+  summarize(n = n()) %>%
+  mutate(freq = (n / sum(n)) * 100) %>%
+  filter(pdays==999) %>% .$freq
+```
+
+We obtain that 96 % of the calls have no previuos contact. But remember that our target variable is asymmetric as well. Let's the relationship between this variable with other values than 999 and our target variable.
+
+```{r}
+calls %>%
+  filter(pdays != 999) %>%
+  group_by(y) %>%
+  summarise(n=n())
+```
+
+As we see, roughly two thirds of the calls with a recent contact have a positive result. Indeed, comparing with the total number of positive results in our data set we see that approximately a 20% of the positive results have previous contacts in the lasts days.
+
+Given these results, we'll keep the pdays variable, and recommend our marketing department to place resources on following up some customers.
+
+### variable 'default'
+
+Now we'll analyse the 'default' variable. As we saw with the summary only three calls corresponded to customers with a previous default. We saw as well that in the first bar plot on the variable importance point this variable had the last position. 
+
+This is a categorical variable. To analyse its variability we'll use the entropy formula defined by Shannon:
+
+$$H(x) = -\sum_{x_i}p(x_i)log_2p(x_i)$$
+
+In r code: 
+
+```{r}
+entropy = function(vector) {
+  px = table(vector) / length(vector)
+  lpx = log(px, base=2)
+  -sum(px * lpx)
+}
+```
+
+Our entropy is:
+
+```{r}
+entropy(calls$default)
+```
+
+But after removing the unknown values we have a very low entropy:
+
+```{r}
+entropy(droplevels(calls$default[calls$default != "unknown"]))
+```
+
+So this is clearly a variable candidate to be not considered in our model.
+
+# Citations
+
+[Moro et al., 2014] S. Moro, P. Cortez and P. Rita. A Data-Driven Approach to Predict the Success of Bank Telemarketing. Decision Support Systems, In press, http://dx.doi.org/10.1016/j.dss.2014.03.001
