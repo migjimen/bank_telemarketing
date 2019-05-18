@@ -170,7 +170,22 @@ calls %>%
   geom_histogram(binwidth=5)
 ```
 
-We can see that the age ranges have different success rates. Seems that our campaign was less successful with people between 35 and 45 years.
+We can see that the age ranges have different success rates. Seems that our campaign was less successful with people between 35 and 45 years. The next figure shows the succes rate by age:
+
+```{r}
+age_success <- calls %>%
+  mutate(age_round = floor(age/10)*10, bin=paste(age_round, age_round+10,sep="-")) %>%
+  group_by(bin,y) %>%
+  summarize(n=n()) %>%
+  ungroup() %>%
+  group_by(bin) %>%
+  spread(y,n, fill=0) %>%
+  mutate(success_percent = (yes /(no+yes))*100)
+
+age_success %>%
+  ggplot(aes(x=bin, y=success_percent)) +
+  geom_bar(stat="identity")
+```
 
 ### job variable
 
@@ -209,6 +224,51 @@ tail(job_success,5)
 ```
 
 The worse results were with blue-collar employees.
+
+## Education
+
+The next figure shows the success ratios by education level:
+```{r}
+calls %>%
+  ggplot(aes(x=education, fill=y)) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle=45, vjust = 1, hjust=1))
+```
+
+We can see here that we have a category (illiterate) with very few observations. It may give us some problems with some of the algorithm that we will use. A way to address this may be to fusion this category with the lower education level, basic.4y, that now will be this category or lower. We'll do it this way:
+
+```{r}
+# Fusion of illiterate and basic.4y
+levels_ed <- levels(calls$education)
+levels(calls$education) <- ifelse(levels_ed=="illiterate","basic.4y",levels_ed)
+rm(levels_ed)
+```
+
+And now the figure is:
+
+```{r}
+calls %>%
+  ggplot(aes(x=education, fill=y)) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle=45, vjust = 1, hjust=1))
+```
+
+The next table shows the success ratios by education level
+
+```{r}
+education_success <- calls %>%
+  group_by(education,y) %>%
+  summarize(n=n()) %>%
+  ungroup() %>%
+  group_by(education) %>%
+  spread(y,n) %>%
+  mutate(success_percent = (yes /(no+yes))*100) %>%
+  arrange(desc(success_percent))
+
+education_success
+```
+
+Apart from the 'unknown' category, the customers with the highest education levels seems to be a little more likely to subscribe the term diposit.
 
 ## Variables with near Zero variance or near Zero entropy 
 
