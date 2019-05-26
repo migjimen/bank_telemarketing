@@ -3,21 +3,31 @@ title: "Bank Marketing Campaign"
 author: "Miguel Ángel Jiménez Sánchez"
 date: "May the 10th, 2019"
 output: pdf_document
+urlcolor: blue
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
-if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org"); library(tidyverse)
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org"); library(caret)
+if(!require(Rborist)) install.packages("Rborist", repos = "http://cran.us.r-project.org"); library(Rborist)
+if(!require(e1071))  install.packages("e1071", repos = "http://cran.us.r-project.org");library(e1071)
+if(!require(klaR))  install.packages("klaR", repos = "http://cran.us.r-project.org");library(klaR)
+if(!require(pROC))  install.packages("pROC", repos = "http://cran.us.r-project.org");library(pROC)
+if(!require(mice))  install.packages("mice", repos = "http://cran.us.r-project.org");library(mice)
+if(!require(VIM))  install.packages("VIM", repos = "http://cran.us.r-project.org"); library(VIM)
+if(!require(glmnet))  install.packages("glmnet", repos = "http://cran.us.r-project.org"); library(glmnet)
+if(!require(fastICA))  install.packages("fastICA", repos = "http://cran.us.r-project.org"); library(fastICA)
+if(!require(kernlab))  install.packages("kernlab", repos = "http://cran.us.r-project.org"); library(kernlab)
+if(!require(randomForest))  install.packages("randomForest", repos = "http://cran.us.r-project.org"); library(randomForest)
+
 
 #dl <- tempfile()
 #download.file("http://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank-additional.zip", dl)
 #unzip(dl, "bank-additional/bank-additional-full.csv")
 #rm(dl)
 calls <- read.csv("./bank-additional/bank-additional-full.csv",sep=";")
-
-calls <- subset(calls, select=-c(duration))
 
 ```
 
@@ -75,7 +85,9 @@ The first step will be an exploratory data analysis. From this data analysis we'
 After that, we'll train 6 different algorithms with this algorithm: glm, glmnet, Naive Bayes, Knn, Rborist and SVM radial. Finally, we'll ensemble the probabilities obtained from these 6 algorithms into our final model.
 
 
-# Exploratory Data Analysis (EDA)
+# Analysis/ Methods
+
+The intend in this chapter is not doing an exhaustive review of all the variables on the dataset. It will be centered on the variables with the higher (or lower) predictive power and the variables that may need some preprocessing.
 
 ## Duration variable
 
@@ -94,7 +106,7 @@ summary(calls)
 From here we can see several things:
 
 * We have no NA values in our data. But some categorical variables have values as 'unknown' or 'nonexistent'. We'll analyse these variables later.
-* The results of our target variable y aren't balanced. We only have roughly a 10% of 'yes'.
+* The results of our target variable y aren't balanced. We only have roughly a 11% of 'yes'.
 * Variable "default": in our data set of more than 40.000 calls we have only three calls to people with a previous default. The rest are unknown or have no previous default. It seems that this variable won't have a high predictive power.
 
 ## Correlation on numeric columns
@@ -130,7 +142,7 @@ Now we will study the variable importance on predicting our target value. To do 
 ```{r}
 library(randomForest)
 calls_y = calls$y
-calls_x <- subset(calls, select=-y)
+calls_x <- subset(calls, select=-c(duration,y))
 
 rf <- randomForest(calls_x, calls_y, ntree = 100)
 imp <- as.data.frame(importance(rf))
@@ -232,7 +244,7 @@ calls %>%
   theme(axis.text.x = element_text(angle=45, vjust = 1, hjust=1))
 ```
 
-We can see here that we have a category (illiterate) with very few observations. It may give us some problems with some of the algorithm that we will use. A way to address this may be to fusion this category with the lower education level, basic.4y, that now will be this category or lower. We'll do it this way:
+We can see here that we have a category (illiterate) with very few observations. A way to address this may be to fusion this category with the lower education level, basic.4y, that now will be this category or lower. We'll do it this way:
 
 ```{r}
 # Fusion of illiterate and basic.4y
@@ -266,6 +278,9 @@ education_success
 ```
 
 Apart from the 'unknown' category, the customers with the highest education levels seems to be a little more likely to subscribe the term diposit.
+
+Regarding the 'unknown' category, seems that has a reasonable rate of success. Indeed it is the category with the higher rate of success. It doesn't seem reasonable to consider not knowing the education level of our customers as a success factor in our campaign, so we'll need to apply here some imputation techniques. We'll review this in the preprocessing chapter.
+
 
 ## Variables with near Zero variance or near Zero entropy 
 
@@ -313,7 +328,7 @@ Given these results, we'll keep the pdays variable, and recommend our marketing 
 
 Now we'll analyse the 'default' variable. As we saw with the summary only three calls corresponded to customers with a previous default. We saw as well that in the first bar plot on the variable importance point this variable had the last position. 
 
-This is a categorical variable. To analyse its variability we'll use the entropy formula defined by Shannon:
+This is a categorical variable. Just to give a number to discard this variable, we'll use the entropy formula defined by Shannon:
 
 $$H(x) = -\sum_{x_i}p(x_i)log_2p(x_i)$$
 
@@ -333,13 +348,410 @@ Our entropy is:
 entropy(calls$default)
 ```
 
-But after removing the unknown values we have a very low entropy:
+But after removing the unknown values we have near zero entropy:
 
 ```{r}
 entropy(droplevels(calls$default[calls$default != "unknown"]))
 ```
 
 So this is clearly a variable candidate to be not considered in our model.
+
+## Missing values
+
+As we have seen in previous steps, some categorical variables have values labeled as 'unknown' or 'nonexistent'.
+
+The only variable that has the value 'nonexistent' is the variable 'poutcome' (previous outcome). By my understanding, these aren't actually missing values so I won't do any imputation on them.
+
+The next five categorical variables have value labeled as 'unknown': education, housing, loan, job and marital. The next figures shows some patterns regarding unknown data on these data:
+
+
+```{r}
+## Missing values
+# replace unknown by NA
+
+calls$job <- as.character(calls$job)
+calls$job <- ifelse(calls$job == "unknown", NA, calls$job) 
+calls$job <- factor(calls$job)
+
+calls$marital <- as.character(calls$marital)
+calls$marital <- ifelse(calls$marital == "unknown", NA, calls$marital) 
+calls$marital <- factor(calls$marital)
+
+calls$education <- as.character(calls$education)
+calls$education <- ifelse(calls$education == "unknown", NA, calls$education) 
+calls$education <- factor(calls$education)
+
+calls$housing <- as.character(calls$housing)
+calls$housing <- ifelse(calls$housing == "unknown", NA, calls$housing) 
+calls$housing <- factor(calls$housing)
+
+calls$loan <- as.character(calls$loan)
+calls$loan <- ifelse(calls$loan == "unknown", NA, calls$loan) 
+calls$loan <- factor(calls$loan)
+
+
+aggr_plot <- aggr(calls[,c("job","marital","education", "housing", "loan")], col=c('navyblue','yellow'),
+                  numbers=TRUE, sortVars=TRUE, prop=FALSE,
+                  labels=c("job","marital","education", "housing", "loan"), cex.axis=.7,
+                  gap=3, ylab=c("Missing data", "Pattern"))
+```
+
+These figures give us some insights on missing data:
+
+1. 38245 observations out of 41188 have all 5 variables informed
+2. There aren't observations with all 5 variables 'unknown'
+3. The variable with more unknown values is 'education' (1731 observations)
+4. If we look at the pattern table, we see that when 'housing' is unknown, 'loan' is unknown as well and viceversa
+
+
+## General Preprocessing
+
+Here starts the preprocessing of the data. If first place we'll remove the variables 'duration','default' and 'emp.var.rate' as in our data analysis we have seen that they won't be useful for our model.
+
+```{r}
+calls <- subset(calls, select=-c(duration, default, emp.var.rate))
+```
+
+The next step is the imputation of the missing values. To do this, I will use the MICE package (Multivariate Imputation by Chained Equations). You can see the documentation [here](https://cran.r-project.org/web/packages/mice/mice.pdf). First we'll do the initialization:
+
+```{r}
+init = mice(calls, maxit=0) 
+meth = init$method
+predM = init$predictorMatrix
+```
+The five variables are related with personal data. It is pointless to consider certain data to deduct personal data, as the interest rates. We can neither consider our target variable as a predictor for the missing values.
+
+```{r}
+# Remove some variables as predictors
+predM[, c("contact","month","day_of_week", "campaign", "pdays",
+          "previous","poutcome", "cons.price.idx","cons.conf.idx",
+          "euribor3m","y")]=0
+```
+Now we define the methods for prediction. The variables 'job', 'marital' and 'education' have several categories. The variables 'housing' and 'loan' have only two categories.
+
+```{r}
+# set methods for prediction
+meth[c("job", "marital","education")] = "polyreg"
+meth[c("housing","loan")] = "logreg"
+```
+And now starts the imputation:
+
+```{r}
+set.seed(103)
+imputed = mice(calls, method=meth, predictorMatrix=predM, m=5)
+
+imputed <- complete(imputed)
+```
+
+The next step is not part of the imputation. The results of some of the algorithms used in the next chapters have improved when we define the education variable as an ordered factor:
+
+```{r}
+## ordered factors
+imputed$education <- factor(imputed$education, ordered=TRUE, levels = c("basic.4y","basic.6y","basic.9y","high.school","professional.course","university.degree"))
+```
+
+The summary of the dataset resulting of the imputation is the next:
+
+```{r}
+summary(imputed)
+```
+
+## Division of train and test set
+
+For the train set we will select a 90% of the observations and the other 10% will be the test set.
+
+```{r}
+#################################################################################
+## divide in 90% train set and 10% test set
+set.seed(204)
+test_index <- createDataPartition(y = imputed$y, times = 1, p = 0.1, list = FALSE)
+
+train_set <- imputed[-test_index,]
+test_set <- imputed[test_index,]
+
+
+rm(test_index)
+
+```
+
+We will define a subset of the training set to select the hyperparameters. We'll use it for the algorithms that need more computation power. When possible, we'll use the hole dataset to select hyperparameters.
+
+```{r}
+## This is a sample that will be used to train the hiperparameters of several algorithms
+n <- 6500
+index <- sample(nrow(train_set), n)
+```
+
+## Algorithms
+
+### glmn
+
+```{r}
+######################################
+## glmn
+fit_glm <- glm(y ~ . , 
+               data=train_set, 
+               family="binomial")
+p_glm <- predict(fit_glm, test_set, type="response")
+
+ROC <- roc(test_set$y, p_glm)
+plot(ROC, col = "red", print.auc=TRUE)
+
+auc_results <- tibble(method = "glm", AUC = pROC::auc(ROC))
+
+######################################
+## glmnet
+glmnet_control <- trainControl(
+  method = "cv", number=5,
+  summaryFunction = twoClassSummary,
+  classProbs = TRUE,
+  verboseIter = TRUE
+)
+
+glmnet_grid <- expand.grid(alpha = 0:1, lambda = seq(0.0001, 1, length = 20))
+
+train_glmnet <- train(
+  y ~ ., train_set,
+  tuneGrid = glmnet_grid,
+  method = "glmnet",
+  trControl = glmnet_control,
+  metric="ROC"
+)
+
+# plot the model
+plot(train_glmnet)
+
+p_glmnet <- predict(train_glmnet, test_set, type="prob")
+
+
+ROC <- roc(test_set$y, p_glmnet[,"yes"])
+plot(ROC, col = "red", print.auc=TRUE)
+
+auc_results <- rbind(auc_results,
+                          tibble(method="glmnet",  
+                                     AUC = pROC::auc(ROC) ))
+######################################
+## knn
+
+control_knn <- trainControl(
+  method="cv", number = 5,
+  summaryFunction = twoClassSummary,
+  classProbs = TRUE,
+  verboseIter = TRUE)
+
+
+train_knn <- train(y ~ ., 
+                   data=train_set[index,],
+                   method = "knn", 
+                   tuneGrid = data.frame(k = c(9,14,18,21,25)),
+                   trControl = control_knn,
+                   metric="ROC")
+
+# plot the model
+plot(train_knn)
+
+fit_knn <- knn3(y ~., train_set,  k = train_knn$bestTune$k)
+p_knn  <- predict(fit_knn, test_set)
+
+ROC <- roc(test_set$y, p_knn[,"yes"])
+plot(ROC, col = "red", print.auc=TRUE)
+
+auc_results <- rbind(auc_results,
+                         tibble(method="knn",  
+                                    AUC = pROC::auc(ROC) ))
+
+######################################
+## Naive Bayes
+
+control_nb <- trainControl(
+  method="cv", number = 5,
+  summaryFunction = twoClassSummary,
+  classProbs = TRUE,
+  verboseIter = TRUE)
+
+
+nb_grid <- expand.grid(
+  usekernel = c(TRUE, FALSE),
+  fL=0:3,
+  adjust = seq(0, 3, by = 1)
+)
+
+preProc_nb <- preProcess(subset(train_set, select=-y), method=c("center", "scale","ica"),n.comp=5)
+preProc_train_set <- predict(preProc_nb,train_set)
+preProc_test_set <- predict(preProc_nb,test_set)
+
+train_nb <- train(y ~.,
+                  data=preProc_train_set[index,],
+                  method="nb",
+                  trControl = control_nb,
+                  tuneGrid = nb_grid,
+                  metric="ROC")
+
+#Plot the model
+plot(train_nb)
+
+fit_nb <- NaiveBayes(y ~ .,
+                     data=preProc_train_set,
+                     fL = train_nb$bestTune$fL,
+                     usekernel = train_nb$bestTune$usekernel,
+                     adjust=train_nb$bestTune$adjust)
+p_nb <- predict(fit_nb, preProc_test_set)$posterior
+
+ROC <- roc(test_set$y, p_nb[,"yes"])
+plot(ROC, col = "red", print.auc=TRUE)
+auc_results <- rbind(auc_results,
+                         tibble(method="Naive Bayes",  
+                                    AUC = pROC::auc(ROC) ))
+
+######################################
+## RBorist
+
+# Preprocessing: Rborist returns an error of unsopported type where there are ordered factors
+preProc_train_set <- train_set
+preProc_train_set$education <- factor(preProc_train_set$education, ordered=FALSE)
+
+preProc_test_set <- test_set
+preProc_test_set$education <- factor(preProc_test_set$education, ordered=FALSE)
+
+# hiperparameter tuning
+control_rf <- trainControl(
+  method="cv", number = 5,
+  summaryFunction = twoClassSummary,
+  classProbs = TRUE,
+  verboseIter = TRUE)
+
+grid_rf <- expand.grid(minNode = c(1,2) , predFixed = c(10, 14, 17))
+
+train_rf <-  train(y ~ ., 
+                   data = preProc_train_set[index,], 
+                   method = "Rborist", 
+                   nTree = 50,
+                   trControl = control_rf,
+                   tuneGrid = grid_rf,
+                   nSamp = 5000,
+                   metric="ROC")
+
+## plot the model
+plot(train_rf)
+
+
+fit_rf <- Rborist(subset(preProc_train_set, select=-y),
+                  train_set$y,
+                  nTree = 1000,
+                  minNode = train_rf$bestTune$minNode,
+                  predFixed = train_rf$bestTune$predFixed,
+                  verbose=TRUE)
+
+
+p_rf <- predict(fit_rf, subset(preProc_test_set, select=-y))$census  
+p_rf<- p_rf / rowSums(p_rf)
+
+
+ROC <- roc(test_set$y, p_rf[,"yes"])
+plot(ROC, col = "red", print.auc=TRUE)
+auc_results <- rbind(auc_results,
+                         tibble(method="Rborist",  
+                                    AUC = pROC::auc(ROC) ))
+
+
+######################################
+## svmRadial
+control_svmRadial <- trainControl(
+  method="cv", number = 3,
+  summaryFunction = twoClassSummary,
+  classProbs = TRUE,
+  verboseIter = TRUE)
+
+grid_svmRadial <- expand.grid(sigma = c(0, 0.1, 0.2, 0.5, 1), C = c(0.01, 0.1, 0.5, 1, 3))
+
+preProc_svmRadial <- preProcess(subset(train_set, select=-y), method=c("center", "scale"))
+preProc_train_set <- predict(preProc_nb,train_set)
+preProc_test_set <- predict(preProc_nb,test_set)
+
+train_svmRadial <- train(y ~., 
+                         data = preProc_train_set[index,], 
+                         method = "svmRadial",
+                         trControl=control_svmRadial,
+                         tuneGrid = grid_svmRadial,
+                         tuneLength = 1,
+                         metric="ROC")
+
+
+plot(train_svmRadial)
+
+fit_svmRadial <- svm(y ~ ., 
+                     data=preProc_train_set, 
+                     kernel="radial", 
+                     cost=train_svmRadial$bestTune$C,
+                     sigma=train_svmRadial$bestTune$sigma,
+                     probability=TRUE)
+
+pred <- predict(fit_svmRadial, preProc_test_set, probability=TRUE)
+
+p_svmRadial <- attr(pred,"probabilities")
+
+ROC <- roc(test_set$y, p_svmRadial[,"yes"])
+plot(ROC, col = "red", print.auc=TRUE)
+auc_results <- rbind(auc_results,
+                         tibble(method="svmRadial",  
+                                    AUC = pROC::auc(ROC) ))
+
+
+######################################
+## Ensemble of previous models
+
+p_ensemble <- (p_glm + p_glmnet + p_knn + p_nb + p_rf + p_svmRadial) / 6
+
+ROC <- roc(test_set$y, p_ensemble[,"yes"])
+plot(ROC, col = "red", print.auc=TRUE)
+auc_results <- rbind(auc_results,
+                         tibble(method="ensemble",  
+                                    AUC = pROC::auc(ROC) ))
+
+auc_results
+
+y_pred <- factor(ifelse(apply(p_ensemble, 1, which.max)-1==1, "yes", "no"))
+
+cm_ensemble <- confusionMatrix(y_pred, test_set$y, positive="yes")
+
+cm_ensemble
+
+#################################################################################
+## Accuracy - sensitivity trade off
+#################################################################################
+
+## performance indicators function
+performance_indicators <- function(cut, probs, y) {
+  y_hat = factor(ifelse(probs > cut, "yes", "no"), levels=c("yes","no"))
+  w = which(y=="yes")
+  sensitivity = mean( y_hat[w] == "yes" ) 
+  specificity = mean( y_hat[-w] == "no" ) 
+  accuracy = mean( y==y_hat ) 
+  selection_rate = length(which(y_hat == "yes")) / length(y_hat)
+  d = sensitivity-selection_rate
+  out = t(as.matrix(c(cut, sensitivity, specificity, accuracy,d, selection_rate)))
+  colnames(out) = c("cut","sensitivity", "specificity", "accuracy", "distance", "selection_rate")
+  return(out)
+  
+}
+
+cuts <- seq(.01,.99,length=1000)
+
+list_cut <- lapply(cuts, function(x) {performance_indicators(x,p_ensemble[,"yes"],test_set$y)})
+df_cut <- data.frame(do.call(rbind, list_cut))
+
+df_cut %>%
+  ggplot() +
+  geom_line(aes(x=cut,y=sensitivity, color="Sensitivity")) +
+  geom_line(aes(x=cut,y=specificity, color="Specificity")) +
+  geom_line(aes(x=cut,y=accuracy, color="Accuracy")) +
+  geom_line(aes(x=cut,y=distance, color="Distance")) +
+  geom_line(aes(x=cut,y=selection_rate, color="Calls selected rate")) +
+  labs(color = 'Performance indicators')
+
+# best cut
+df_cut[which.max(df_cut$distance),]
+```
 
 # Citations
 
