@@ -25,7 +25,10 @@ calls <- subset(calls, select=-c(duration))
 
 ## Objective
 
-The goal of the system described on this document is to predict if a client will subscribe a bank term deposit on a telephonic marketic campaign.
+Our goal on this project is to study a dataset generated in a marketing campaign. This campaign was performed by a portuguese bank between 2008 and 2010 to offer a term diposit. 
+
+We will try to obtain insights to optimize the resources of the marketing department. We will construct as well a predictive model to predict which contacts may result on the subscription to the product that we are offering.
+
 
 ## The dataset
 
@@ -33,48 +36,43 @@ The dataset used on this project is based on "Bank Marketing" UCI dataset and is
 
 The zip file contains two csv files. The first (bank-additional-full.csv) contains the full data set. The second file (bank-additional.csv) contains a sample of 10% of the former. The zip file contains as well a txt file with information about the dataset and a description of the fields. 
 
-We will use chiefly the file "bank-additional-full.csv". Each row represents a contact with a customer. The dataset contains 41188 observations and 21 variables, including our target variable 'y'. This variable is categorical with two posible values "yes" or "not", depending on whether the customer subscribes the term deposit or not.
+We will use only the file "bank-additional-full.csv". Each row represents a contact with a customer. The dataset contains 41188 observations and 21 variables, including our target variable 'y'. This variable is categorical with two posible values "yes" or "not", depending on whether the customer subscribes the term deposit or not.
 
 The rest of the variables are described on the txt file. These variables can be divided in four groups:
 
 1. Bank client data
+  * age (numeric)
+  * job: Type of job (categorical)
+  * marital: marital status (categorical)
+  * education (categorical)
+  * default: has credit in default? (categorical)
+  * housing: has housing loan? (categorical)
+  * loan: has personal loan? (categorical)
 2. Last contact of the current campaign
+  * contact: contact communication type (categorical: "cellular","telephone")
+  * month (categorical)
+  * day_of_week (categorical)
+  * duration: duration of call in seconds (numerical)
 3. Social and economic context attributes
+  * emp.var.rate: employment variation rate - quarterly indicator (numeric)
+  * cons.price.idx: consumer price index - monthly indicator (numeric)     
+  * cons.conf.idx: consumer confidence index - monthly indicator (numeric)     
+  * euribor3m: euribor 3 month rate - daily indicator (numeric)
+  * nr.employed: number of employees - quarterly indicator (numeric)
 4. Other attributes regarding previous contacts with the client
-
-For reference, I'll copy here the description of the fields:
-
-
-* bank client data:
- 1 - age (numeric)
- 2 - job : type of job (categorical: "admin.","blue-collar","entrepreneur","housemaid","management","retired","self-employed","services","student","technician","unemployed","unknown")
- 3 - marital : marital status (categorical: "divorced","married","single","unknown"; note: "divorced" means divorced or widowed)
- 4 - education (categorical: "basic.4y","basic.6y","basic.9y","high.school","illiterate","professional.course","university.degree","unknown")
- 5 - default: has credit in default? (categorical: "no","yes","unknown")
- 6 - housing: has housing loan? (categorical: "no","yes","unknown")
- 7 - loan: has personal loan? (categorical: "no","yes","unknown")
-* related with the last contact of the current campaign:
- 8 - contact: contact communication type (categorical: "cellular","telephone") 
- 9 - month: last contact month of year (categorical: "jan", "feb", "mar", ..., "nov", "dec")
- 10 - day_of_week: last contact day of the week (categorical: "mon","tue","wed","thu","fri")
- 11 - duration: last contact duration, in seconds (numeric). Important note:  this attribute highly affects the output target (e.g., if duration=0 then y="no"). Yet, the duration is not known before a call is performed. Also, after the end of the call y is obviously known. Thus, this input should only be included for benchmark purposes and should be discarded if the intention is to have a realistic predictive model.
-* Other attributes:
- 12 - campaign: number of contacts performed during this campaign and for this client (numeric, includes last contact)
- 13 - pdays: number of days that passed by after the client was last contacted from a previous campaign (numeric; 999 means client was not previously contacted)
- 14 - previous: number of contacts performed before this campaign and for this client (numeric)
- 15 - poutcome: outcome of the previous marketing campaign (categorical: "failure","nonexistent","success")
-* social and economic context attributes
- 16 - emp.var.rate: employment variation rate - quarterly indicator (numeric)
- 17 - cons.price.idx: consumer price index - monthly indicator (numeric)     
- 18 - cons.conf.idx: consumer confidence index - monthly indicator (numeric)     
- 19 - euribor3m: euribor 3 month rate - daily indicator (numeric)
- 20 - nr.employed: number of employees - quarterly indicator (numeric)
-* Output variable (desired target):
- 21 - y - has the client subscribed a term deposit? (binary: "yes","no")
+  * campaign: number of contacts performed during this campaign and for this client (numeric, includes last contact)
+  * pdays: number of days that passed by after the client was last contacted from a previous campaign (numeric; 999 means client was not previously contacted)
+  * previous: number of contacts performed before this campaign and for this client (numeric)
+  * poutcome: outcome of the previous marketing campaign (categorical
+5. The output variable y: has the client subscribed a term deposit? (binary: "yes","no")
+ 
+ As we see on this dataset we have both categorical and numeric variables.
 
 ## Main steps
 
-The first step will be an exploratory data analysis.
+The first step will be an exploratory data analysis. From this data analysis we'll get our first insights on this data set and we'll determine if some preprocessing is needed.
+
+After that, we'll train 6 different algorithms with this algorithm: glm, glmnet, Naive Bayes, Knn, Rborist and SVM radial. Finally, we'll ensemble the probabilities obtained from these 6 algorithms into our final model.
 
 
 # Exploratory Data Analysis (EDA)
@@ -83,7 +81,7 @@ The first step will be an exploratory data analysis.
 
 One of the first decisions on this dataset is removing the column 'Duration', which describes the duration of the call. Actually some tests that I've done result that this is a variable that helps greatly in predicting our target variable y. 
 
-But it has a big inconvenient: we know the duration of the call at the same time than whether the customer subscribes or not (indeed, if our call operators are polite enough to say "thanks" and "goodbye", the duration is known later than y). So this is not a variable that we can use for our objetive to predict the subscriptions, as it is warned on the txt file included beside the csv file. 
+But it has a big inconvenient: we know the duration of the call at the same time than our target variable (indeed, if our call operators are polite enough to say "thanks" and "goodbye", the duration is known later than y). So this is not a variable that we can use for our objetive to predict the subscriptions, as it is warned on the txt file included beside the csv file. 
 
 ## Summary of the data
 
@@ -97,7 +95,6 @@ From here we can see several things:
 
 * We have no NA values in our data. But some categorical variables have values as 'unknown' or 'nonexistent'. We'll analyse these variables later.
 * The results of our target variable y aren't balanced. We only have roughly a 10% of 'yes'.
-* Variables "campaign" and "previous" aren't as similar as their descriptions suggest.
 * Variable "default": in our data set of more than 40.000 calls we have only three calls to people with a previous default. The rest are unknown or have no previous default. It seems that this variable won't have a high predictive power.
 
 ## Correlation on numeric columns
@@ -124,7 +121,7 @@ melted_cormat %>%
 
 ```
 
-On this figure we can see strong correlations on several economic variables. Namely we have three variables strongly correlated: The euribor3m, which is an interest rate, and the two variables regarding employment (nr.employed and emp.var.rate).
+On this figure we can see strong correlations on several economic variables. Namely we have three variables strongly correlated: The euribor3m, which is an interest rate, and the two variables regarding employment (nr.employed and emp.var.rate). The correlation between the euribor3m and emp.var.rate is 0.9722, so one of these variables can be removed.  
 
 ## Variable importance
 
@@ -158,7 +155,7 @@ calls %>%
     geom_histogram(bins=6)
 ```
 
-Seems that our campaing was more successful with a low interest rate. And we seldom have results with euribor around 3%. Why? Our data set register calls from may 2008 to november 2010. If we look at historical data for years [2008](https://www.euribor-rates.eu/euribor-2008.asp?i1=6&i2=6), [2009](https://www.euribor-rates.eu/euribor-2009.asp?i1=6&i2=6) and [2010](https://www.euribor-rates.eu/euribor-2010.asp?i1=6&i2=6) at <https://www.euribor-rates.eu>, we can see that interest rates sunked quite abruply at the end of 2008. Maybe a relatively safe investment as a term diposit is more attractive in times of crisis.
+Seems that our campaing was more successful with a low interest rate. And we seldom have results with euribor around 3%. Why? Our data set register calls from may 2008 to november 2010. If we look at historical data for years [2008](https://www.euribor-rates.eu/euribor-2008.asp?i1=6&i2=6), [2009](https://www.euribor-rates.eu/euribor-2009.asp?i1=6&i2=6) and [2010](https://www.euribor-rates.eu/euribor-2010.asp?i1=6&i2=6) at <https://www.euribor-rates.eu>, we can see that interest rates sunked quite abruply at the end of 2008. Seems than some characteristic of our term diposit was more attractive with a low interest rate. Maybe our interest rate was competitive or maybe a relatively safe investment as a term diposit is preferred on crisis times.
 
 ### age variable
 
