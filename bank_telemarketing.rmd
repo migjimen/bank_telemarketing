@@ -436,7 +436,7 @@ meth[c("housing","loan")] = "logreg"
 ```
 And now starts the imputation:
 
-```{r}
+```{r echo=T, results='hide'}
 set.seed(103)
 imputed = mice(calls, method=meth, predictorMatrix=predM, m=5)
 
@@ -484,21 +484,43 @@ index <- sample(nrow(train_set), n)
 
 ## Algorithms
 
-### glmn
+In the next sections we'll train several algorithms in order to predict which contacts will result in a subscription. For each algorithm we may do the next steps:
 
-```{r}
+1. Preprocesing of data: For some algorithms we'll do some operations on the data, as centering and scaling.
+2. hiperparameter tunning
+3. train the model
+4. Evaluate with the test set.
+
+To compare the performance of these models the Area Under the Curve (AUC) metric will be used. To calculate it, the pROC package is used.
+
+### Generalized Linear Model (glm)
+
+This model has no hyperparameters, so we'll train directly the train set.
+
+```{r echo=T, results='hide'}
 ######################################
-## glmn
+## glm
 fit_glm <- glm(y ~ . , 
                data=train_set, 
                family="binomial")
 p_glm <- predict(fit_glm, test_set, type="response")
+```
 
+And the result:
+
+```{r}
 ROC <- roc(test_set$y, p_glm)
 plot(ROC, col = "red", print.auc=TRUE)
 
 auc_results <- tibble(method = "glm", AUC = pROC::auc(ROC))
+```
 
+### GLM with lasso or elasticnet regularization (glmnet)
+
+On the next model we fit two hyperparamenters: alpha and lambda. As this algorithm is quick enough, we'll search the hiperparameters with the whole train set.
+
+
+```{r  echo=T, results='hide'}
 ######################################
 ## glmnet
 glmnet_control <- trainControl(
@@ -517,10 +539,18 @@ train_glmnet <- train(
   trControl = glmnet_control,
   metric="ROC"
 )
+```
 
+The results of our hyperparameter search:
+
+```{r}
 # plot the model
 plot(train_glmnet)
+```
 
+And now we do the predictions on the test set and calculate AUC:
+
+```{r}
 p_glmnet <- predict(train_glmnet, test_set, type="prob")
 
 
@@ -530,6 +560,13 @@ plot(ROC, col = "red", print.auc=TRUE)
 auc_results <- rbind(auc_results,
                           tibble(method="glmnet",  
                                      AUC = pROC::auc(ROC) ))
+```
+
+### k-Nearest Neighbours (KNN)
+
+For this algorithm, the hyperparameter to search is the number of neighbors k.
+
+```{r echo=T, results='hide'}
 ######################################
 ## knn
 
@@ -546,11 +583,22 @@ train_knn <- train(y ~ .,
                    tuneGrid = data.frame(k = c(9,14,18,21,25)),
                    trControl = control_knn,
                    metric="ROC")
+```
 
+The results of our search:
+```{r}
 # plot the model
 plot(train_knn)
+```
 
+Now train the algorithm with the best tune found on the whole train set.
+
+```{r}
 fit_knn <- knn3(y ~., train_set,  k = train_knn$bestTune$k)
+```
+
+Finally do the predictions on the test set and calculate AUC.
+```{r}
 p_knn  <- predict(fit_knn, test_set)
 
 ROC <- roc(test_set$y, p_knn[,"yes"])
@@ -559,7 +607,13 @@ plot(ROC, col = "red", print.auc=TRUE)
 auc_results <- rbind(auc_results,
                          tibble(method="knn",  
                                     AUC = pROC::auc(ROC) ))
+```
 
+### Naive Bayes
+
+ Our next algorithm is Naive Bayes. Our search grid includes three hyperparameters: usekernel (true or false), fl (Laplace correction) and adjust (a factor correction on the smoothing bandwidth)
+ 
+```{r echo=T, results='hide'}
 ######################################
 ## Naive Bayes
 
@@ -575,26 +629,47 @@ nb_grid <- expand.grid(
   fL=0:3,
   adjust = seq(0, 3, by = 1)
 )
+```
 
+With this algorithm we'll apply three transformations on the data: center (center numeric values around zero), scale (scale numeric values) and Independent component Analysis (ica):
+
+```{r echo=T, results='hide'}
 preProc_nb <- preProcess(subset(train_set, select=-y), method=c("center", "scale","ica"),n.comp=5)
 preProc_train_set <- predict(preProc_nb,train_set)
 preProc_test_set <- predict(preProc_nb,test_set)
+```
 
+And now, search the best tune of the hyperparameters in a subset of the training set:
+
+```{r echo=T, results='hide'}
 train_nb <- train(y ~.,
                   data=preProc_train_set[index,],
                   method="nb",
                   trControl = control_nb,
                   tuneGrid = nb_grid,
                   metric="ROC")
+```
 
+The results of our search:
+```{r}
 #Plot the model
 plot(train_nb)
+```
 
+Now we train the algorithm with the whole train set with the best tune:
+
+```{r}
 fit_nb <- NaiveBayes(y ~ .,
                      data=preProc_train_set,
                      fL = train_nb$bestTune$fL,
                      usekernel = train_nb$bestTune$usekernel,
                      adjust=train_nb$bestTune$adjust)
+
+```
+
+Finally do the predictions on the test set and calculate AUC.
+
+```{r}
 p_nb <- predict(fit_nb, preProc_test_set)$posterior
 
 ROC <- roc(test_set$y, p_nb[,"yes"])
@@ -602,9 +677,13 @@ plot(ROC, col = "red", print.auc=TRUE)
 auc_results <- rbind(auc_results,
                          tibble(method="Naive Bayes",  
                                     AUC = pROC::auc(ROC) ))
+```
 
-######################################
-## RBorist
+### Random Forest (RBorist)
+
+With the RBorist function we found a problem with the ordered factor, so just for this algorithm I'll undo this transformation: 
+
+```{r}
 
 # Preprocessing: Rborist returns an error of unsopported type where there are ordered factors
 preProc_train_set <- train_set
@@ -612,7 +691,11 @@ preProc_train_set$education <- factor(preProc_train_set$education, ordered=FALSE
 
 preProc_test_set <- test_set
 preProc_test_set$education <- factor(preProc_test_set$education, ordered=FALSE)
+```
 
+For this algorithm we'll search the best tune through two hyperparameters: minNode and predFixed.
+
+```{r r echo=T, results='hide'}
 # hiperparameter tuning
 control_rf <- trainControl(
   method="cv", number = 5,
@@ -630,11 +713,17 @@ train_rf <-  train(y ~ .,
                    tuneGrid = grid_rf,
                    nSamp = 5000,
                    metric="ROC")
+```
 
+The next figure shows the results of our search:
+```{r}
 ## plot the model
 plot(train_rf)
+```
 
 
+
+```{r}
 fit_rf <- Rborist(subset(preProc_train_set, select=-y),
                   train_set$y,
                   nTree = 1000,
