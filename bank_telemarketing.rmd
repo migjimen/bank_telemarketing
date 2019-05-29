@@ -693,7 +693,7 @@ preProc_test_set <- test_set
 preProc_test_set$education <- factor(preProc_test_set$education, ordered=FALSE)
 ```
 
-For this algorithm we'll search the best tune through two hyperparameters: minNode and predFixed.
+For this algorithm we'll search the best tune through two hyperparameters: minNode (minimal index width over which to attempt splitting) and predFixed (number of trial predictors for a split).
 
 ```{r r echo=T, results='hide'}
 # hiperparameter tuning
@@ -722,6 +722,7 @@ plot(train_rf)
 ```
 
 
+Now we train the algorithm with the whole train set with the best tune:
 
 ```{r}
 fit_rf <- Rborist(subset(preProc_train_set, select=-y),
@@ -730,8 +731,11 @@ fit_rf <- Rborist(subset(preProc_train_set, select=-y),
                   minNode = train_rf$bestTune$minNode,
                   predFixed = train_rf$bestTune$predFixed,
                   verbose=TRUE)
+```
 
+Finally do the predictions on the test set and calculate AUC:
 
+```{r}
 p_rf <- predict(fit_rf, subset(preProc_test_set, select=-y))$census  
 p_rf<- p_rf / rowSums(p_rf)
 
@@ -741,8 +745,13 @@ plot(ROC, col = "red", print.auc=TRUE)
 auc_results <- rbind(auc_results,
                          tibble(method="Rborist",  
                                     AUC = pROC::auc(ROC) ))
+```
 
+### Support Vector Machines (SVM) Radial
 
+The last algorithm that we will train on this project is the Support Vector Machines radial. Here we'll tune two hyperparameters: gamma and C (cost of constraints violation)
+
+```{r}
 ######################################
 ## svmRadial
 control_svmRadial <- trainControl(
@@ -752,11 +761,19 @@ control_svmRadial <- trainControl(
   verboseIter = TRUE)
 
 grid_svmRadial <- expand.grid(sigma = c(0, 0.1, 0.2, 0.5, 1), C = c(0.01, 0.1, 0.5, 1, 3))
+```
 
+Here we'll apply two preprocessing transformations on the data. Center and scale
+
+```{r}
 preProc_svmRadial <- preProcess(subset(train_set, select=-y), method=c("center", "scale"))
 preProc_train_set <- predict(preProc_nb,train_set)
 preProc_test_set <- predict(preProc_nb,test_set)
+```
 
+And now we search the best hyperparameters with a subset of the train set.
+
+```{r echo=T, results='hide'}
 train_svmRadial <- train(y ~., 
                          data = preProc_train_set[index,], 
                          method = "svmRadial",
@@ -767,14 +784,22 @@ train_svmRadial <- train(y ~.,
 
 
 plot(train_svmRadial)
+```
 
+Next the model is trained with the best tune and the whole train set:
+
+```{r}
 fit_svmRadial <- svm(y ~ ., 
                      data=preProc_train_set, 
                      kernel="radial", 
                      cost=train_svmRadial$bestTune$C,
                      sigma=train_svmRadial$bestTune$sigma,
                      probability=TRUE)
+```
 
+Finally get the predictions on the test set and calculte AUC: 
+
+```{r}
 pred <- predict(fit_svmRadial, preProc_test_set, probability=TRUE)
 
 p_svmRadial <- attr(pred,"probabilities")
@@ -785,7 +810,13 @@ auc_results <- rbind(auc_results,
                          tibble(method="svmRadial",  
                                     AUC = pROC::auc(ROC) ))
 
+```
 
+### Ensemble of previous models
+
+Finally we'll calculate the mean of the probabilities obtained from the previous models. The intend of this last step is to combine the output of the previous models to obtain better predictions: 
+
+```{r}
 ######################################
 ## Ensemble of previous models
 
@@ -797,14 +828,34 @@ auc_results <- rbind(auc_results,
                          tibble(method="ensemble",  
                                     AUC = pROC::auc(ROC) ))
 
-auc_results
+```
 
+# Results
+
+As we can see the ensemble gives the best AUC:
+```{r}
+auc_results
+```
+
+The confusion matrix that we get with the ensemble of the five models:
+
+```{r}
 y_pred <- factor(ifelse(apply(p_ensemble, 1, which.max)-1==1, "yes", "no"))
 
 cm_ensemble <- confusionMatrix(y_pred, test_set$y, positive="yes")
 
 cm_ensemble
+```
 
+## Tradeof between accuracy and sensitibity
+
+To be honest, the results of the ensemble model don't seem quite impressive. Do them? 
+
+But we can still do something. Remember that our objective is to optimize the resources of our marketing department. For example, imagine that the department has a budget to do 1000 calls. We can simply get the probabilities obtained by our ensemble model and select the 1000 calls with the greatest probability to subscribe.
+
+Other approach can be sacrifizing some accuracy in order to gain more sensitibity. We can do this by trying different thresholds with our vector of probabilities. On the next figure we show the effect of selecting different cuts on several performance indicators. For each cut (x axis) we consider y=yes if the probability to be "yes" is greater than the cut.
+
+```{r}
 #################################################################################
 ## Accuracy - sensitivity trade off
 #################################################################################
@@ -837,10 +888,26 @@ df_cut %>%
   geom_line(aes(x=cut,y=distance, color="Distance")) +
   geom_line(aes(x=cut,y=selection_rate, color="Calls selected rate")) +
   labs(color = 'Performance indicators')
+```
 
+On this figure, the "Distance" line represents the difference between the ratio of calls where y=yes and the sensitibity (how many subscriptors have we detected)
+
+The best cut is:
+
+```{r}
 # best cut
 df_cut[which.max(df_cut$distance),]
 ```
+
+Which is pretty near to the ratio of subscriptions that we have in our dataset. 
+
+# Conclusions
+
+With our Exploratory Data Analysis we have discarded some variables to be considered in our model, as they do not contribute much to predict subscriptions. In the other hand we have done a review of the variables with the most predictive power and we have gained some insights from them.
+
+We have created a predictive model, that allow us to assign probabilities of success on a list of calls. This allows us to select the calls with the most chances of success if we have a limited budget.
+
+We can improve this model by adding more algorithms to our ensemble. In the other hand we can improve the model as well by including new data or adding other variables. 
 
 # Citations
 
