@@ -31,22 +31,22 @@ calls <- read.csv("./bank-additional/bank-additional-full.csv",sep=";")
 
 ```
 
-# Overview
+# 1. Overview
 
-## Objective
+## 1.1 Objective
 
-Our goal on this project is to study a dataset generated in a marketing campaign. This campaign was performed by a portuguese bank between 2008 and 2010 to offer a term diposit. 
+Our goal on this project is to study a dataset generated in a marketing campaign. This campaign was performed by a Portuguese bank between 2008 and 2010 to offer a term deposit. 
 
-We will try to obtain insights to optimize the resources of the marketing department. We will construct as well a predictive model to predict which contacts may result on the subscription to the product that we are offering.
+We will try to obtain insights to optimize the resources of the marketing department. We will construct as well a predictive model to predict which contacts or calls (I'll use both terms) may result on the subscription to the product that we are offering.
 
 
-## The dataset
+## 1.2 The dataset
 
 The dataset used on this project is based on "Bank Marketing" UCI dataset and is publicly available for research. It can be downloaded from <http://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank-additional.zip>.
 
 The zip file contains two csv files. The first (bank-additional-full.csv) contains the full data set. The second file (bank-additional.csv) contains a sample of 10% of the former. The zip file contains as well a txt file with information about the dataset and a description of the fields. 
 
-We will use only the file "bank-additional-full.csv". Each row represents a contact with a customer. The dataset contains 41188 observations and 21 variables, including our target variable 'y'. This variable is categorical with two posible values "yes" or "not", depending on whether the customer subscribes the term deposit or not.
+We will use only the file "bank-additional-full.csv". Each row represents a contact with a customer. The dataset contains 41188 observations and 21 variables, including our target variable 'y'. This variable is categorical with two possible values "yes" or "not", depending on whether the customer subscribes the term deposit or not.
 
 The rest of the variables are described on the txt file. These variables can be divided in four groups:
 
@@ -78,24 +78,24 @@ The rest of the variables are described on the txt file. These variables can be 
  
  As we see on this dataset we have both categorical and numeric variables.
 
-## Main steps
+## 1.3 Main steps
 
 The first step will be an exploratory data analysis. From this data analysis we'll get our first insights on this data set and we'll determine if some preprocessing is needed.
 
 After that, we'll train 6 different algorithms with this algorithm: glm, glmnet, Naive Bayes, Knn, Rborist and SVM radial. Finally, we'll ensemble the probabilities obtained from these 6 algorithms into our final model.
 
 
-# Analysis/ Methods
+# 2. Analysis/ Methods
 
-The intend in this chapter is not doing an exhaustive review of all the variables on the dataset. It will be centered on the variables with the higher (or lower) predictive power and the variables that may need some preprocessing.
+The intent in this chapter is not doing an exhaustive review of all the variables on the dataset. It will be centered on the variables with the higher (or lower) predictive power and the variables that may need some preprocessing.
 
-## Duration variable
+## 2.1 Duration variable
 
 One of the first decisions on this dataset is removing the column 'Duration', which describes the duration of the call. Actually some tests that I've done result that this is a variable that helps greatly in predicting our target variable y. 
 
-But it has a big inconvenient: we know the duration of the call at the same time than our target variable (indeed, if our call operators are polite enough to say "thanks" and "goodbye", the duration is known later than y). So this is not a variable that we can use for our objetive to predict the subscriptions, as it is warned on the txt file included beside the csv file. 
+But it has a big inconvenient: we know the duration of the call at the same time than our target variable (indeed, if our call operators are polite enough to say "thanks" and "goodbye", the duration is known later than y). So this is not a variable that we can use for our objective to predict the subscriptions, as it is warned on the txt file included beside the csv file. 
 
-## Summary of the data
+## 2.2 Summary of the data
 
 With the next command we'll see a summary of our data:
 
@@ -109,7 +109,7 @@ From here we can see several things:
 * The results of our target variable y aren't balanced. We only have roughly a 11% of 'yes'.
 * Variable "default": in our data set of more than 40.000 calls we have only three calls to people with a previous default. The rest are unknown or have no previous default. It seems that this variable won't have a high predictive power.
 
-## Correlation on numeric columns
+## 2.3 Correlation on numeric columns
 
 Now let's focus on the correlation of the numeric columns:
 
@@ -135,7 +135,7 @@ melted_cormat %>%
 
 On this figure we can see strong correlations on several economic variables. Namely we have three variables strongly correlated: The euribor3m, which is an interest rate, and the two variables regarding employment (nr.employed and emp.var.rate). The correlation between the euribor3m and emp.var.rate is 0.9722, so one of these variables can be removed.  
 
-## Variable importance
+## 2.4 Variable importance
 
 Now we will study the variable importance on predicting our target value. To do this we'll use the availability of this functionality on the randomforest package. Let's generate 100 trees and see which are the most important variables:
 
@@ -157,9 +157,9 @@ ggplot(imp, aes(x=variables,y=MeanDecreaseGini)) +
 
 ```
 
-### euribor 3m variable
+### 2.4.1 euribor 3m variable
 
-One of the most important variables is an interest rate indicator as the 3 month euribor. It seems logic, as the product we are offereing is a term diposit. Let's see the distribution of results regarding this indicator:
+One of the most important variables is an interest rate indicator as the 3 month euribor. It seems logic, as the product we are offering is a term deposit. Let's see the distribution of results regarding this indicator:
 
 ```{r}
 calls %>%
@@ -167,9 +167,9 @@ calls %>%
     geom_histogram(bins=6)
 ```
 
-Seems that our campaing was more successful with a low interest rate. And we seldom have results with euribor around 3%. Why? Our data set register calls from may 2008 to november 2010. If we look at historical data for years [2008](https://www.euribor-rates.eu/euribor-2008.asp?i1=6&i2=6), [2009](https://www.euribor-rates.eu/euribor-2009.asp?i1=6&i2=6) and [2010](https://www.euribor-rates.eu/euribor-2010.asp?i1=6&i2=6) at <https://www.euribor-rates.eu>, we can see that interest rates sunked quite abruply at the end of 2008. Seems than some characteristic of our term diposit was more attractive with a low interest rate. Maybe our interest rate was competitive or maybe a relatively safe investment as a term diposit is preferred on crisis times.
+Seems that our campaign was more successful with a low interest rate. And we seldom have results with euribor around 3%. Why? Our data set register calls from may 2008 to November 2010. If we look at historical data for years [2008](https://www.euribor-rates.eu/euribor-2008.asp?i1=6&i2=6), [2009](https://www.euribor-rates.eu/euribor-2009.asp?i1=6&i2=6) and [2010](https://www.euribor-rates.eu/euribor-2010.asp?i1=6&i2=6) at <https://www.euribor-rates.eu>, we can see that interest rates collapsed quite abruptly at the end of 2008. Seems than some characteristic of our term deposit was more attractive with a low interest rate. Maybe our interest rate was competitive or maybe a relatively safe investment as a term deposit is preferred on crisis times.
 
-### age variable
+### 2.4.2 age variable
 
 The next figure shows the distribution of the calls by age, in bins of five years.
 
@@ -179,7 +179,7 @@ calls %>%
   geom_histogram(binwidth=5)
 ```
 
-We can see that the age ranges have different success rates. Seems that our campaign was less successful with people between 35 and 45 years. The next figure shows the succes rate by age:
+We can see that the age ranges have different success rates. Seems that our campaign was less successful with people between 35 and 45 years. The next figure shows the success rate by age:
 
 ```{r}
 age_success <- calls %>%
@@ -196,7 +196,7 @@ age_success %>%
   geom_bar(stat="identity")
 ```
 
-### job variable
+### 2.4.3 job variable
 
 Now we'll analyse the job variable. In the next figure we classify the calls by jobs, and show the successes and failures by color.
 
@@ -226,7 +226,7 @@ The best rates:
 head(job_success,5)
 ```
 
-Seems that the campaing was quite successful on students and retired people. Let's see the worse rates:
+Seems that the campaign was quite successful on students and retired people. Let's see the worse rates:
 
 ```{r}
 tail(job_success,5)
@@ -234,7 +234,7 @@ tail(job_success,5)
 
 The worse results were with blue-collar employees.
 
-## Education
+### 2.4.4 Education
 
 The next figure shows the success ratios by education level:
 ```{r}
@@ -277,25 +277,25 @@ education_success <- calls %>%
 education_success
 ```
 
-Apart from the 'unknown' category, the customers with the highest education levels seems to be a little more likely to subscribe the term diposit.
+Apart from the 'unknown' category, the customers with the highest education levels seems to be a little more likely to subscribe the term deposit.
 
 Regarding the 'unknown' category, seems that has a reasonable rate of success. Indeed it is the category with the higher rate of success. It doesn't seem reasonable to consider not knowing the education level of our customers as a success factor in our campaign, so we'll need to apply here some imputation techniques. We'll review this in the preprocessing chapter.
 
 
-## Variables with near Zero variance or near Zero entropy 
+## 2.5 Variables with near Zero variance or near Zero entropy 
 
-The caret package has a function that detects features with near zero variance, and hence canditates to be removed. Let's see its recommendation.
+The caret package has a function that detects features with near zero variance, and hence candidates to be removed. Let's see its recommendation.
 
 ```{r}
 nzv <- nearZeroVar(calls)
 names(calls)[nzv]
 ```
 
-The recommendation is to remove the 'pdays' variable which is the number of days passed since the last contact with the same client. But If we we look at the bar plot on the previuos point, this variable has a worthy ninth place of nineteen. Let's have a closer look to this variable.
+The recommendation is to remove the 'pdays' variable which is the number of days passed since the last contact with the same client. But If we we look at the bar plot on the previous point, this variable has a worthy ninth place of nineteen. Let's have a closer look to this variable.
 
-### variable 'pdays'
+### 2.5.1 variable 'pdays'
 
-The next table shows how manys rows we have for each value in pdays:
+The next table shows how many rows we have for each value in pdays:
 
 ```{r}
 table(calls$pdays)
@@ -311,7 +311,7 @@ calls %>%
   filter(pdays==999) %>% .$freq
 ```
 
-We obtain that 96 % of the calls have no previuos contact. But remember that our target variable is asymmetric as well. Let's the relationship between this variable with other values than 999 and our target variable.
+We obtain that 96 % of the calls have no previous contact. But remember that our target variable is asymmetric as well. Let's the relationship between this variable with other values than 999 and our target variable.
 
 ```{r}
 calls %>%
@@ -324,7 +324,7 @@ As we see, roughly two thirds of the calls with a recent contact have a positive
 
 Given these results, we'll keep the pdays variable, and recommend our marketing department to place resources on following up some customers.
 
-### variable 'default'
+### 2.5.2 variable 'default'
 
 Now we'll analyse the 'default' variable. As we saw with the summary only three calls corresponded to customers with a previous default. We saw as well that in the first bar plot on the variable importance point this variable had the last position. 
 
@@ -356,7 +356,7 @@ entropy(droplevels(calls$default[calls$default != "unknown"]))
 
 So this is clearly a variable candidate to be not considered in our model.
 
-## Missing values
+## 2.6 Missing values
 
 As we have seen in previous steps, some categorical variables have values labeled as 'unknown' or 'nonexistent'.
 
@@ -401,10 +401,10 @@ These figures give us some insights on missing data:
 1. 38245 observations out of 41188 have all 5 variables informed
 2. There aren't observations with all 5 variables 'unknown'
 3. The variable with more unknown values is 'education' (1731 observations)
-4. If we look at the pattern table, we see that when 'housing' is unknown, 'loan' is unknown as well and viceversa
+4. If we look at the pattern table, we see that when 'housing' is unknown, 'loan' is unknown as well and vice versa
 
 
-## General Preprocessing
+## 2.7 Preprocessing
 
 Here starts the preprocessing of the data. If first place we'll remove the variables 'duration','default' and 'emp.var.rate' as in our data analysis we have seen that they won't be useful for our model.
 
@@ -456,7 +456,7 @@ The summary of the dataset resulting of the imputation is the next:
 summary(imputed)
 ```
 
-## Division of train and test set
+## 2.8 Division of train and test set
 
 For the train set we will select a 90% of the observations and the other 10% will be the test set.
 
@@ -474,7 +474,7 @@ rm(test_index)
 
 ```
 
-We will define a subset of the training set to select the hyperparameters. We'll use it for the algorithms that need more computation power. When possible, we'll use the hole dataset to select hyperparameters.
+We will define a subset of the training set to select the hyperparameters. We'll use it for the algorithms that need more computation power. When possible, we'll use the hole data set to select hyperparameters.
 
 ```{r}
 ## This is a sample that will be used to train the hiperparameters of several algorithms
@@ -482,18 +482,20 @@ n <- 6500
 index <- sample(nrow(train_set), n)
 ```
 
-## Algorithms
+## 2.9 Algorithms
 
-In the next sections we'll train several algorithms in order to predict which contacts will result in a subscription. For each algorithm we may do the next steps:
+In the next sections we'll train several algorithms in order to predict which contacts will result in a subscription. The intent of this section is not doing a detailed description of each algorithm, as it can be found in internet.
 
-1. Preprocesing of data: For some algorithms we'll do some operations on the data, as centering and scaling.
-2. hiperparameter tunning
+For each algorithm we may do the next steps:
+
+1. Preprocessing of data: For some algorithms we'll do some operations on the data, as centering and scaling.
+2. hyperparameter tuning
 3. train the model
 4. Evaluate with the test set.
 
 To compare the performance of these models the Area Under the Curve (AUC) metric will be used. To calculate it, the pROC package is used.
 
-### Generalized Linear Model (glm)
+### 2.9.1 Generalized Linear Model (glm)
 
 This model has no hyperparameters, so we'll train directly the train set.
 
@@ -515,9 +517,13 @@ plot(ROC, col = "red", print.auc=TRUE)
 auc_results <- tibble(method = "glm", AUC = pROC::auc(ROC))
 ```
 
-### GLM with lasso or elasticnet regularization (glmnet)
+### 2.9.2 GLM with lasso or elasticnet regularization (glmnet)
 
-On the next model we fit two hyperparamenters: alpha and lambda. As this algorithm is quick enough, we'll search the hiperparameters with the whole train set.
+On the next model we fit two hyperparamenters: alpha and lambda. As this algorithm is quick enough, we'll search the hyperparameters with the whole train set.
+
+The hyperparameters for this algorithm are two: 
+* alpha is the elasticnet mixing parameter. "1" for lasso regression, "0" for ridge regression
+* lambda: the penalization used for regularization
 
 
 ```{r echo=TRUE, results='hide'}
@@ -562,9 +568,9 @@ auc_results <- rbind(auc_results,
                                      AUC = pROC::auc(ROC) ))
 ```
 
-### k-Nearest Neighbours (KNN)
+### 2.9.3 k-Nearest Neighbours (KNN)
 
-For this algorithm, the hyperparameter to search is the number of neighbors k.
+For this algorithm, the hyperparameter to search is the number of neighbors k. we'll do the hyperparameter search with a sample of the training set.
 
 ```{r echo=TRUE, results='hide'}
 ######################################
@@ -609,9 +615,11 @@ auc_results <- rbind(auc_results,
                                     AUC = pROC::auc(ROC) ))
 ```
 
-### Naive Bayes
+### 2.9.4 Naive Bayes
 
- Our next algorithm is Naive Bayes. Our search grid includes three hyperparameters: usekernel (true or false), fl (Laplace correction) and adjust (a factor correction on the smoothing bandwidth)
+Our next algorithm is Naive Bayes. This algorithm will produce a lot of warning messages, but we can ignore them. 
+
+Our search grid includes three hyperparameters: usekernel (true or false), fl (Laplace correction) and adjust (a factor correction to multiply with the smoothing bandwidth; adjust = 1 means no adjust)
  
 ```{r echo=TRUE, results='hide'}
 ######################################
@@ -679,7 +687,7 @@ auc_results <- rbind(auc_results,
                                     AUC = pROC::auc(ROC) ))
 ```
 
-### Random Forest (RBorist)
+### 2.9.5 Random Forest (RBorist)
 
 With the RBorist function we found a problem with the ordered factor, so just for this algorithm I'll undo this transformation: 
 
@@ -747,9 +755,9 @@ auc_results <- rbind(auc_results,
                                     AUC = pROC::auc(ROC) ))
 ```
 
-### Support Vector Machines (SVM) Radial
+### 2.9.6 Support Vector Machines (SVM) Radial
 
-The last algorithm that we will train on this project is the Support Vector Machines radial. Here we'll tune two hyperparameters: gamma and C (cost of constraints violation)
+The last algorithm that we will train on this project is the Support Vector Machines radial. The execution of this algorithm can take around 30 minutes. Here we'll tune two hyperparameters: gamma and C (cost of constraints violation)
 
 First we'll apply two preprocessing transformations on the data. Center and scale
 
@@ -782,7 +790,7 @@ fit_svmRadial <- svm(y ~ .,
                      probability=TRUE)
 ```
 
-Finally get the predictions on the test set and calculte AUC: 
+Finally get the predictions on the test set and calculate AUC: 
 
 ```{r}
 pred <- predict(fit_svmRadial, preProc_test_set, probability=TRUE)
@@ -797,9 +805,9 @@ auc_results <- rbind(auc_results,
 
 ```
 
-### Ensemble of previous models
+### 2.9.7 Ensemble of previous models
 
-Finally we'll calculate the mean of the probabilities obtained from the previous models. The intend of this last step is to combine the output of the previous models to obtain better predictions: 
+Finally we'll calculate the mean of the probabilities obtained from the previous models. The intent of this last step is to combine the output of the previous models to obtain better predictions: 
 
 ```{r}
 ######################################
@@ -815,7 +823,7 @@ auc_results <- rbind(auc_results,
 
 ```
 
-# Results
+# 3. Results
 
 As we can see the ensemble gives the best AUC:
 ```{r}
@@ -832,13 +840,25 @@ cm_ensemble <- confusionMatrix(y_pred, test_set$y, positive="yes")
 cm_ensemble
 ```
 
-## Tradeof between accuracy and sensitibity
+## 3.2 Tradeof between accuracy and sensitibity
 
 To be honest, the results of the ensemble model don't seem quite impressive. Do them? 
 
-But we can still do something. Remember that our objective is to optimize the resources of our marketing department. For example, imagine that the department has a budget to do 1000 calls. We can simply get the probabilities obtained by our ensemble model and select the 1000 calls with the greatest probability to subscribe.
+But we can still do something. Remember that our objective is to optimize the resources of our marketing department. For example, imagine that the department has a budget to do 1000 calls. 
 
-Other approach can be sacrifizing some accuracy in order to gain more sensitibity. We can do this by trying different thresholds with our vector of probabilities. On the next figure we show the effect of selecting different cuts on several performance indicators. For each cut (x axis) we consider y=yes if the probability to be "yes" is greater than the cut.
+The variable 'p_ensemble' contains a structure with two columns "yes" and "no". The column "yes" contains the probabilities for each call to obtain the subscription. If we had budget for 1000 calls, we can simply get the probabilities obtained by our ensemble model and select the 1000 calls with the greatest probability to subscribe.
+
+```{r}
+selection <- test_set[order(p_ensemble$yes, decreasing=TRUE)[1:1000],]
+sel_subscriptors <- sum(selection$y=="yes")
+tot_subscriptors <- sum(test_set$y=="yes")
+```
+
+By selecting the 1000 out of `r toString(nrow(test_set))` best probabilities, we get `r toString(sel_subscriptors)` subscriptors. Not bad when the total number of possible subscriptors are `r toString(tot_subscriptors)`.
+
+
+Other approach can be trying different thresholds with our vector of probabilities. We consider y="yes" when the probability of being "yes" is greater than the threshold. This way we sacrifice some accuracy to get more sensitivity. On the next figure we show the effect of selecting different thresholds (x axis) on several performance indicators.
+
 
 ```{r}
 #################################################################################
@@ -853,9 +873,8 @@ performance_indicators <- function(cut, probs, y) {
   specificity = mean( y_hat[-w] == "no" ) 
   accuracy = mean( y==y_hat ) 
   selection_rate = length(which(y_hat == "yes")) / length(y_hat)
-  d = sensitivity-selection_rate
-  out = t(as.matrix(c(cut, sensitivity, specificity, accuracy,d, selection_rate)))
-  colnames(out) = c("cut","sensitivity", "specificity", "accuracy", "distance", "selection_rate")
+  out = t(as.matrix(c(cut, sensitivity, specificity, accuracy, selection_rate)))
+  colnames(out) = c("cut","sensitivity", "specificity", "accuracy", "pred_yes")
   return(out)
   
 }
@@ -870,23 +889,14 @@ df_cut %>%
   geom_line(aes(x=cut,y=sensitivity, color="Sensitivity")) +
   geom_line(aes(x=cut,y=specificity, color="Specificity")) +
   geom_line(aes(x=cut,y=accuracy, color="Accuracy")) +
-  geom_line(aes(x=cut,y=distance, color="Distance")) +
-  geom_line(aes(x=cut,y=selection_rate, color="Calls selected rate")) +
+  geom_line(aes(x=cut,y=pred_yes, color="Subscriptions predicted")) +
   labs(color = 'Performance indicators')
 ```
 
-On this figure, the "Distance" line represents the difference between the ratio of calls where y=yes and the sensitibity (how many subscriptors have we detected)
+Suppose that we call only to the rows predicted as subscriptions. Observe that the curve of subscriptions predicted has an elbow around a threshold of 0.11, which is the ratio of "yes" on the data set. This seems to be the optimal threshold.
 
-The best cut is:
 
-```{r}
-# best cut
-df_cut[which.max(df_cut$distance),]
-```
-
-Which is pretty near to the ratio of subscriptions that we have in our dataset. With this cut, selecting only a 17.7% of the possible contacts we can reach the 64% of the subscribers.
-
-# Conclusions
+# 4. Conclusions
 
 With our Exploratory Data Analysis we have discarded some variables to be considered in our model, as they do not contribute much to predict subscriptions. In the other hand we have done a review of the variables with the most predictive power and we have gained some insights from them.
 
@@ -894,6 +904,6 @@ We have created a predictive model, that allow us to assign probabilities of suc
 
 We can improve this model by adding more algorithms to our ensemble. In the other hand we can improve the model as well by including new data or adding other variables. 
 
-# Citations
+# 5. Citations
 
 [Moro et al., 2014] S. Moro, P. Cortez and P. Rita. A Data-Driven Approach to Predict the Success of Bank Telemarketing. Decision Support Systems, In press, http://dx.doi.org/10.1016/j.dss.2014.03.001
