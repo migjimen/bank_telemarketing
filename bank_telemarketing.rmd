@@ -21,6 +21,7 @@ if(!require(glmnet))  install.packages("glmnet", repos = "http://cran.us.r-proje
 if(!require(fastICA))  install.packages("fastICA", repos = "http://cran.us.r-project.org"); library(fastICA)
 if(!require(kernlab))  install.packages("kernlab", repos = "http://cran.us.r-project.org"); library(kernlab)
 if(!require(randomForest))  install.packages("randomForest", repos = "http://cran.us.r-project.org"); library(randomForest)
+if(!require(reshape2))  install.packages("reshape2", repos = "http://cran.us.r-project.org"); library(reshape2)
 
 
 dl <- tempfile()
@@ -37,8 +38,9 @@ calls <- read.csv("./bank-additional/bank-additional-full.csv",sep=";")
 
 Our goal on this project is to study a dataset generated in a marketing campaign. This campaign was performed by a Portuguese bank between 2008 and 2010 to offer a term deposit. 
 
-We will try to obtain insights to optimize the resources of the marketing department. We will construct as well a predictive model to predict which contacts or calls (I'll use both terms) may result on the subscription to the product that we are offering.
+We will try to obtain insights to optimize the resources of the marketing department. We will construct as well a predictive model to predict which contacts or calls may result on the subscription to the product that we are offering.
 
+On this document I'll use the terms calls or contacts indistinctly.
 
 ## 1.2 The dataset
 
@@ -118,7 +120,6 @@ Now let's focus on the correlation of the numeric columns:
 (cormat <- Filter(is.numeric,calls) %>%
     cor(method="pearson"))
 
-library(reshape2)
 melted_cormat <- melt(cormat)
 
 melted_cormat %>%
@@ -140,7 +141,6 @@ On this figure we can see strong correlations on several economic variables. Nam
 Now we will study the variable importance on predicting our target value. To do this we'll use the availability of this functionality on the randomforest package. Let's generate 100 trees and see which are the most important variables:
 
 ```{r}
-library(randomForest)
 calls_y = calls$y
 calls_x <- subset(calls, select=-c(duration,y))
 
@@ -279,7 +279,7 @@ education_success
 
 Apart from the 'unknown' category, the customers with the highest education levels seems to be a little more likely to subscribe the term deposit.
 
-Regarding the 'unknown' category, seems that has a reasonable rate of success. Indeed it is the category with the higher rate of success. It doesn't seem reasonable to consider not knowing the education level of our customers as a success factor in our campaign, so we'll need to apply here some imputation techniques. We'll review this in the preprocessing chapter.
+Regarding the 'unknown' category, seems that has a big rate of success. Indeed it is the category with the higher rate of success. It doesn't seem reasonable to consider not knowing the education level of our customers as a success factor in our campaign, so we'll need to apply here some imputation techniques. We'll review this in the preprocessing chapter.
 
 
 ## 2.5 Variables with near Zero variance or near Zero entropy 
@@ -311,7 +311,7 @@ calls %>%
   filter(pdays==999) %>% .$freq
 ```
 
-We obtain that 96 % of the calls have no previous contact. But remember that our target variable is asymmetric as well. Let's the relationship between this variable with other values than 999 and our target variable.
+We obtain that 96 % of the calls have no previous contact. But remember that our target variable is asymmetric as well. Let's see the relationship between this variable with other values than 999 and our target variable.
 
 ```{r}
 calls %>%
@@ -447,7 +447,11 @@ The next step is not part of the imputation. The results of some of the algorith
 
 ```{r}
 ## ordered factors
-imputed$education <- factor(imputed$education, ordered=TRUE, levels = c("basic.4y","basic.6y","basic.9y","high.school","professional.course","university.degree"))
+imputed$education <- factor(imputed$education, 
+                            ordered=TRUE, 
+                            levels = c("basic.4y", "basic.6y", "basic.9y",
+                                       "high.school", "professional.course",
+                                       "university.degree"))
 ```
 
 The summary of the dataset resulting of the imputation is the next:
@@ -464,7 +468,8 @@ For the train set we will select a 90% of the observations and the other 10% wil
 #################################################################################
 ## divide in 90% train set and 10% test set
 set.seed(204)
-test_index <- createDataPartition(y = imputed$y, times = 1, p = 0.1, list = FALSE)
+test_index <- createDataPartition(y = imputed$y, 
+                                  times = 1, p = 0.1, list = FALSE)
 
 train_set <- imputed[-test_index,]
 test_set <- imputed[test_index,]
@@ -493,7 +498,7 @@ For each algorithm we may do the next steps:
 3. train the model
 4. Evaluate with the test set.
 
-To compare the performance of these models the Area Under the Curve (AUC) metric will be used. To calculate it, the pROC package is used.
+To compare the performance of these models the Area Under the Curve (AUC) metric will be used. To calculate it, the pROC package is used. In the AUC metric, a perfect classifier has a score of 1.
 
 ### 2.9.1 Generalized Linear Model (glm)
 
@@ -536,7 +541,8 @@ glmnet_control <- trainControl(
   verboseIter = TRUE
 )
 
-glmnet_grid <- expand.grid(alpha = 0:1, lambda = seq(0.0001, 1, length = 20))
+glmnet_grid <- expand.grid(alpha = 0:1, 
+                           lambda = seq(0.0001, 1, length = 20))
 
 train_glmnet <- train(
   y ~ ., train_set,
@@ -642,7 +648,8 @@ nb_grid <- expand.grid(
 With this algorithm we'll apply three transformations on the data: center (center numeric values around zero), scale (scale numeric values) and Independent component Analysis (ica):
 
 ```{r echo=TRUE, results='hide'}
-preProc_nb <- preProcess(subset(train_set, select=-y), method=c("center", "scale","ica"),n.comp=5)
+preProc_nb <- preProcess(subset(train_set, select=-y), 
+                         method=c("center", "scale","ica"),n.comp=5)
 preProc_train_set <- predict(preProc_nb,train_set)
 preProc_test_set <- predict(preProc_nb,test_set)
 ```
@@ -757,14 +764,15 @@ auc_results <- rbind(auc_results,
 
 ### 2.9.6 Support Vector Machines (SVM) Radial
 
-The last algorithm that we will train on this project is the Support Vector Machines radial. The execution of this algorithm can take around 30 minutes. Here we'll tune two hyperparameters: gamma and C (cost of constraints violation)
+The last algorithm that we will train on this project is the Support Vector Machines radial. The execution of this algorithm is the one that lasts the longest. Here we'll tune two hyperparameters: gamma and C (cost of constraints violation)
 
 First we'll apply two preprocessing transformations on the data. Center and scale
 
 ```{r}
-preProc_svmRadial <- preProcess(subset(train_set, select=-y), method=c("center", "scale"))
-preProc_train_set <- predict(preProc_nb,train_set)
-preProc_test_set <- predict(preProc_nb,test_set)
+preProc_svmRadial <- preProcess(subset(train_set, select=-y), 
+                                method=c("center", "scale"))
+preProc_train_set <- predict(preProc_svmRadial,train_set)
+preProc_test_set <- predict(preProc_svmRadial,test_set)
 ```
 
 And now we search the best hyperparameters with a subset of the train set.
@@ -840,7 +848,7 @@ cm_ensemble <- confusionMatrix(y_pred, test_set$y, positive="yes")
 cm_ensemble
 ```
 
-## 3.2 Tradeof between accuracy and sensitivity
+## 3.2 Trade off between accuracy and sensitivity
 
 The results have an accuracy of 90%, but our sentivity is quite low. 
 
@@ -854,7 +862,7 @@ sel_subscriptors <- sum(selection$y=="yes")
 tot_subscriptors <- sum(test_set$y=="yes")
 ```
 
-By selecting the 1000 out of `r toString(nrow(test_set))` best probabilities, we get `r toString(sel_subscriptors)` subscriptors. Not bad when the total number of possible subscriptors are `r toString(tot_subscriptors)`.
+By selecting the 1000 out of `r toString(nrow(test_set))` best probabilities, we get `r toString(sel_subscriptors)` subscriptors. This is a pretty high share of the total number of possible subscriptors, which are `r toString(tot_subscriptors)`.
 
 
 Other approach can be trying different thresholds with our vector of probabilities. We consider y="yes" when the probability of being "yes" is greater than the threshold. This way we sacrifice some accuracy to get more sensitivity. On the next figure we show the effect of selecting different thresholds (x axis) on several performance indicators.
