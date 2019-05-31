@@ -527,8 +527,8 @@ auc_results <- tibble(method = "glm", AUC = pROC::auc(ROC))
 On the next model we fit two hyperparamenters: alpha and lambda. As this algorithm is quick enough, we'll search the hyperparameters with the whole train set.
 
 The hyperparameters for this algorithm are two: 
-* alpha is the elasticnet mixing parameter. "1" for lasso regression, "0" for ridge regression
-* lambda: the penalization used for regularization
+*alpha is the elasticnet mixing parameter. "1" for lasso regression, "0" for ridge regression
+*lambda: the penalization used for regularization
 
 
 ```{r echo=TRUE, results='hide'}
@@ -766,11 +766,12 @@ auc_results <- rbind(auc_results,
 
 The last algorithm that we will train on this project is the Support Vector Machines radial. The execution of this algorithm is the one that lasts the longest. Here we'll tune two hyperparameters: gamma and C (cost of constraints violation)
 
-First we'll apply two preprocessing transformations on the data. Center and scale
+First we'll apply the next preprocessing transformations on the data: Center, scale and PCA (Principal Component Analysis)
 
 ```{r}
+set.seed(305)
 preProc_svmRadial <- preProcess(subset(train_set, select=-y), 
-                                method=c("center", "scale"))
+                                method=c("center", "scale", "pca"))
 preProc_train_set <- predict(preProc_svmRadial,train_set)
 preProc_test_set <- predict(preProc_svmRadial,test_set)
 ```
