@@ -1,7 +1,7 @@
 ---
 title: "Bank Marketing Campaign"
 author: "Miguel Ángel Jiménez Sánchez"
-date: "May the 10th, 2019"
+date: "May the 30th, 2019"
 output: pdf_document
 urlcolor: blue
 ---
@@ -23,10 +23,10 @@ if(!require(kernlab))  install.packages("kernlab", repos = "http://cran.us.r-pro
 if(!require(randomForest))  install.packages("randomForest", repos = "http://cran.us.r-project.org"); library(randomForest)
 
 
-#dl <- tempfile()
-#download.file("http://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank-additional.zip", dl)
-#unzip(dl, "bank-additional/bank-additional-full.csv")
-#rm(dl)
+dl <- tempfile()
+download.file("http://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank-additional.zip", dl)
+unzip(dl, "bank-additional/bank-additional-full.csv")
+rm(dl)
 calls <- read.csv("./bank-additional/bank-additional-full.csv",sep=";")
 
 ```
@@ -840,11 +840,11 @@ cm_ensemble <- confusionMatrix(y_pred, test_set$y, positive="yes")
 cm_ensemble
 ```
 
-## 3.2 Tradeof between accuracy and sensitibity
+## 3.2 Tradeof between accuracy and sensitivity
 
-To be honest, the results of the ensemble model don't seem quite impressive. Do them? 
+The results have an accuracy of 90%, but our sentivity is quite low. 
 
-But we can still do something. Remember that our objective is to optimize the resources of our marketing department. For example, imagine that the department has a budget to do 1000 calls. 
+But we can still do something. Remember that our objective is to optimize the resources of our marketing department. Imagine that the department has a budget to do 1000 calls. 
 
 The variable 'p_ensemble' contains a structure with two columns "yes" and "no". The column "yes" contains the probabilities for each call to obtain the subscription. If we had budget for 1000 calls, we can simply get the probabilities obtained by our ensemble model and select the 1000 calls with the greatest probability to subscribe.
 
